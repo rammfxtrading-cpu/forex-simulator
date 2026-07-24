@@ -107,3 +107,19 @@ VERIFICADO: ejecuciones #5 y #6 en verde. DIAG_CREDS ya retirado del workflow.
 LECCION: al pegar secretos en GitHub, copiar SIEMPRE con pbcopy desde terminal,
 nunca seleccionando texto a mano. Y si algo falla con credenciales, comparar
 longitudes es la via mas rapida de diagnostico (sin exponer el valor).
+
+## RESILIENCIA ANADIDA (24 jul) — dias malos de Dukascopy
+SINTOMA: el cron de la manana fallo con "Unknown error" en los 9 pares (NO era el
+bug de credenciales de ayer, ese sigue resuelto). Verificado: fallaba tambien en
+local, pero peticiones SUELTAS funcionaban y una serie seguida fallaba -> Dukascopy
+limitando por RAFAGAS de forma intermitente (ventanas de minutos/horas que van y vienen).
+NO se pierde nada: el diseno incremental recupera todos los dias pendientes en la
+siguiente pasada buena (baje 1 dia o 5).
+MEJORAS aplicadas:
+1. Pausas anti-rafaga en scripts/actualizar-diario.js (commit 6b8313e): 10s entre
+   reintentos de dia, 8s entre pares. Menos agresivo = Dukascopy tolera mejor.
+2. SEGUNDA ejecucion diaria del cron: 06:00 Y 14:00 UTC. Si la manana pilla ventana
+   mala, la tarde recupera. El script es idempotente (si ya esta al dia, no hace nada).
+PENDIENTE cuando toque (no urgente): quedaba por recuperar el 22-23 jul; se recuperara
+solo en la proxima pasada con Dukascopy receptivo. Verificar en Supabase que las velas
+llegan hasta ~ayer cuando Dukascopy coopere.
