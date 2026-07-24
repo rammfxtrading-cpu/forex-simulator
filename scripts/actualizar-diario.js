@@ -50,7 +50,7 @@ async function bajarDia(pair, y, m, d) {
         retryCount: 4, retryOnEmpty: true, pauseBetweenRetriesMs: 2000,
       })
       return data.map(c=>({time:Math.floor(c.timestamp/1000),open:c.open,high:c.high,low:c.low,close:c.close,volume:c.volume}))
-    } catch(e) { if (i<5) await sleep(3000); else throw e }
+    } catch(e) { if (i<5) await sleep(10000); else throw e }
   }
 }
 
@@ -108,7 +108,10 @@ async function procesarPar(pair) {
 async function main() {
   console.log(`\n=== ACTUALIZACIÓN DIARIA ${SUBIR?'⚠️ REAL':'🔍 SECO'} — ${new Date().toISOString()} ===\n`)
   const resultados = []
+  let primero = true
   for (const pair of PAIRS) {
+    if (!primero) await sleep(8000)  // pausa anti-rafaga entre pares
+    primero = false
     process.stdout.write(`  ${pair.toUpperCase()}... `)
     try { const r = await procesarPar(pair); console.log(r.estado); resultados.push(r) }
     catch(e) { console.log(`✗ ERROR: ${e.message}`); resultados.push({pair, estado:`✗ ${e.message}`}) }
