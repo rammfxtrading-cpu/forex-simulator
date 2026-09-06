@@ -123,3 +123,25 @@ MEJORAS aplicadas:
 PENDIENTE cuando toque (no urgente): quedaba por recuperar el 22-23 jul; se recuperara
 solo en la proxima pasada con Dukascopy receptivo. Verificar en Supabase que las velas
 llegan hasta ~ayer cuando Dukascopy coopere.
+
+## ALERTAS INTELIGENTES (6 sep) — fin del ruido de correos
+PROBLEMA: llegaban correos rojos casi a diario aunque los datos estuvieran bien. Causa:
+el script marcaba FALLO si CUALQUIER par fallaba la descarga, aunque ese par ya
+estuviera al dia. Con Dukascopy fallando de forma intermitente, eso era ruido constante
+y hacia parecer roto un sistema que funcionaba (verificado: los pares se recuperaban solos).
+SOLUCION (commit c8a8e5e): el veredicto ya NO se basa en fallos de descarga, sino en el
+ESTADO REAL de los datos en Supabase. Al terminar cada pasada comprueba, par por par,
+cuantos DIAS DE MERCADO (lun-vie, excluye findes) lleva sin actualizar:
+  - Todos con retraso <= 2 dias de mercado -> EXITO, sin correo (aunque fallaran descargas).
+  - Algun par con mas retraso -> FALLO + detalle. Eso si merece atencion.
+Ademas imprime en cada pasada un informe del estado de los 9 pares (fecha + retraso).
+RESULTADO: el correo rojo vuelve a significar algo real. Verificado el 6 sep: pasada con
+2 pares fallando la descarga -> veredicto TODO OK porque los datos estaban al dia.
+
+ESTADO A 6 SEP: los 9 pares con retraso 0 (ultima vela 2026-09-04, viernes).
+
+COMO INTERPRETARLO A PARTIR DE AHORA:
+- Sin correo = todo bien.
+- Correo rojo = algun par lleva >2 dias de mercado sin actualizar. Mirar el log: dice
+  exactamente que par y cuanto retraso lleva.
+- Los fallos de descarga sueltos ya NO generan correo (son normales, Dukascopy es asi).
