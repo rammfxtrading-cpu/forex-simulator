@@ -117,8 +117,59 @@ async function main() {
     catch(e) { console.log(`✗ ERROR: ${e.message}`); resultados.push({pair, estado:`✗ ${e.message}`}) }
   }
   const fallos = resultados.filter(r=>r.estado.startsWith('✗'))
-  console.log(`\n=== ${fallos.length? '⚠️ '+fallos.length+' PAR(ES) CON FALLO':'✓ TODO OK'} ===`)
-  if (fallos.length) { fallos.forEach(f=>console.log(`  ${f.pair}: ${f.estado}`)); process.exitCode = 1 }
+  if (fallos.length) {
+    console.log(`\n  (${fallos.length} par(es) con fallo de descarga: ${fallos.map(f=>f.pair).join(', ')})`)
+  }
+
+  // ── VERDICTO por ESTADO REAL de los datos, no por fallos de descarga ──────
+  // Dukascopy falla de forma intermitente: un fallo de descarga NO es un problema
+  // si ese par ya tenia los datos al dia. Lo que importa es cuantos DIAS DE MERCADO
+  // lleva cada par sin actualizar. Solo alertamos si algun par se queda descolgado.
+  const MAX_DIAS_MERCADO_RETRASO = 2
+
+  function diasMercadoEntre(desde, hasta) {   // cuenta lun-vie entre dos fechas
+    let n = 0
+    const d = new Date(Date.UTC(desde.getUTCFullYear(), desde.getUTCMonth(), desde.getUTCDate()))
+    d.setUTCDate(d.getUTCDate() + 1)
+    while (d <= hasta) {
+      const dow = d.getUTCDay()
+      if (dow !== 0 && dow !== 6) n++
+      d.setUTCDate(d.getUTCDate() + 1)
+    }
+    return n
+  }
+
+  console.log(`\n=== ESTADO DE LOS DATOS ===`)
+  const year = new Date().getUTCFullYear()
+  const hoy = new Date()
+  // "ayer" es el ultimo dia que deberia estar disponible
+  const ayer = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), hoy.getUTCDate()-1))
+  const descolgados = []
+
+  for (const pair of PAIRS) {
+    try {
+      const { data, error } = await sb.storage.from(BUCKET).download(`${pair.toUpperCase()}/M1/${year}.json`)
+      if (error) { console.log(`  ${pair.toUpperCase().padEnd(8)} ✗ no legible`); descolgados.push(`${pair}: archivo no legible`); continue }
+      const arr = JSON.parse(await data.text())
+      const ult = new Date(arr[arr.length-1].time*1000)
+      const retraso = diasMercadoEntre(ult, ayer)
+      const ok = retraso <= MAX_DIAS_MERCADO_RETRASO
+      console.log(`  ${pair.toUpperCase().padEnd(8)} ${ok?'✓':'⚠️'} ultima ${ult.toISOString().slice(0,10)} (retraso: ${retraso} dia(s) de mercado)`)
+      if (!ok) descolgados.push(`${pair}: ultima ${ult.toISOString().slice(0,10)}, ${retraso} dias de mercado de retraso`)
+    } catch(e) { console.log(`  ${pair.toUpperCase().padEnd(8)} ✗ ${e.message}`); descolgados.push(`${pair}: ${e.message}`) }
+  }
+
+  if (descolgados.length) {
+    console.log(`\n=== ⚠️ ATENCION: ${descolgados.length} PAR(ES) DESCOLGADO(S) (>${MAX_DIAS_MERCADO_RETRASO} dias de mercado) ===`)
+    descolgados.forEach(d=>console.log(`  ${d}`))
+    console.log(`\n  Los fallos de descarga puntuales son normales (Dukascopy es intermitente),`)
+    console.log(`  pero estos pares llevan varias pasadas sin recuperarse. Revisar.`)
+    process.exitCode = 1
+  } else {
+    console.log(`\n=== ✓ TODO OK — todos los pares dentro del margen (<=${MAX_DIAS_MERCADO_RETRASO} dias de mercado) ===`)
+    if (fallos.length) console.log(`  (los fallos de descarga de arriba no afectan: esos pares ya estaban al dia)`)
+  }
+
   if (!SUBIR) console.log(`\n  (SECO — no se tocó nada. Para subir: --subir)`)
 }
 
